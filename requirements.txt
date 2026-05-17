@@ -1,0 +1,13 @@
+ultralytics
+opencv-python
+supervision
+numpy
+pandas
+matplotlib
+mplsoccer
+scikit-learn
+scipy
+streamlit
+pyyaml
+tqdm
+plotly
