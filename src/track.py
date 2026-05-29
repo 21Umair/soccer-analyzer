@@ -6,8 +6,8 @@ import pandas as pd
 
 VIDEO_PATH = r"data\raw-videos\1.mp4"
 MODEL_PATH = r"models\yolo26m.pt"
-OUTPUT_VIDEO_PATH = r"outputs\tracked_m3_cl_botsort.mp4"
-OUTPUT_CSV_PATH = r"outputs\track_1_botsort.csv"
+OUTPUT_VIDEO_PATH = r"outputs\tracked_custom_botsort.mp4"
+OUTPUT_CSV_PATH = r"outputs\tracked_custom_botsort.csv"
 CONFIDENCE = float(0.3)
 
 def track_video(
@@ -30,7 +30,8 @@ def track_video(
     results = model.track(
         source= video_path,
         # tracker= r"configs\custom_bytrack.yaml",
-        tracker= r"botsort.yaml",
+        # tracker= r"botsort.yaml",
+        tracker= r"configs\custom_botsort.yaml",
         stream= True,
         persist= True,
         conf=conf,
