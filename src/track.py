@@ -3,6 +3,9 @@ from pathlib import Path
 import cv2
 import pandas as pd
 
+from src.simple_features import extract_color_feature
+from src.reid_memory import GlobalIDManager
+
 
 VIDEO_PATH = r"data\raw-videos\1.mp4"
 MODEL_PATH = r"models\yolo26m.pt"
@@ -21,6 +24,12 @@ def track_video(
     Path(output_csv_path).parent.mkdir(parents=True, exist_ok=True)
 
     model = YOLO(model_path)
+
+    id_manager = GlobalIDManager(
+        primary_ttl_frames = 250,
+        secondary_ttl_frames = 3000,
+        match_threshold = 0.72,
+    )
 
     custom_names = {
         "person": "player",
@@ -67,12 +76,39 @@ def track_video(
             boxes = result.boxes.xyxy.cpu().numpy()
             track_ids = result.boxes.id.cpu().numpy().astype(int)
             class_ids = result.boxes.cls.cpu().numpy().astype(int)
-            confidences = result.boxes.conf.cpu().numpy()
+            confs = result.boxes.conf.cpu().numpy()
 
-            for box, track_id, class_id, box_conf in zip(
-                boxes, track_ids, class_ids, confidences
+            active_tracker_ids = []
+
+            for box, tracker_id, class_id, conf in zip(
+                boxes, track_ids, class_ids, confs
             ):
-                x1, y1, x2, y2 = box.astype(int)
+                x1, y1, x2, y2 = box
+
+                bbox = [x1, y1, x2, y2]
+
+                active_tracker_ids.append(int(tracker_id))
+
+                # Extract color feature from this player crop
+                feature = extract_color_feature(frame, bbox)
+
+                # Ask our memory system:
+                # Is this a new player or an old player coming back?
+                global_id = id_manager.find_match(
+                    tracker_id=int(tracker_id),
+                    frame_idx=frame_idx,
+                    bbox=bbox,
+                    feature=feature,
+                )
+
+                # Update memory with the latest information
+                id_manager.update(
+                    tracker_id=int(tracker_id),
+                    global_id=global_id,
+                    frame_idx=frame_idx,
+                    bbox=bbox,
+                    feature=feature,
+                )
 
                 original_name = model.names[int(class_id)]
                 display_name = custom_names.get(original_name, original_name)
@@ -83,21 +119,22 @@ def track_video(
                 rows.append(
                     {
                         "frame": frame_idx,
-                        "track_id": track_id,
+                        "track_id": int(tracker_id),
+                        "global_id": int(global_id),
                         "class_id": int(class_id),
                         "class_name": original_name,
                         "display_name": display_name,
-                        "confidence": float(box_conf),
-                        "x1": x1,
-                        "y1": y1,
-                        "x2": x2,
-                        "y2": y2,
-                        "foot_x": foot_x,
-                        "foot_y": foot_y,
+                        "confidence": float(conf),
+                        "x1": float(x1),
+                        "y1": float(y1),
+                        "x2": float(x2),
+                        "y2": float(y2),
+                        "foot_x": float(foot_x),
+                        "foot_y": float(foot_y),
                     }
                 )
 
-                label = f"{display_name} #{track_id} {box_conf:.2f}"
+                label = f"{display_name} #{tracker_id} {confs:.2f}"
 
                 cv2.rectangle(
                     frame,
